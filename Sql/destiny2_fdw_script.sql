@@ -86,17 +86,69 @@ CREATE TABLE IF NOT EXISTS DAMAGE_TYPE
 );
 
 INSERT INTO DAMAGE_TYPE (HASH, NAME, DESCRIPTION, ICON, RED, GREEN, BLUE, ALPHA)
+WITH DT AS (
+    SELECT 'displayProperties'   AS DISPLAYPROPERTIES,
+                     'description'         AS DTDESCR,
+                     'color' as COLOR
+)
 SELECT (JSON ->> 'hash')::BIGINT                                                            AS HASH,
-       (JSON -> 'displayProperties' ->> 'name')::VARCHAR(100)                               AS NAME,
-       (JSON -> 'displayProperties' ->> 'description')::VARCHAR(100)                        AS DESCRIPTION,
-       (COALESCE((JSON -> 'displayProperties' ->> 'icon')::VARCHAR(100), ''))::VARCHAR(100) AS ICON,
-       COALESCE((JSON -> 'color' -> 'red')::SMALLINT, 255)::SMALLINT                        AS RED,
-       COALESCE((JSON -> 'color' -> 'green')::SMALLINT, 255)::SMALLINT                      AS GREEN,
-       COALESCE((JSON -> 'color' -> 'blue')::SMALLINT, 255)::SMALLINT                       AS BLUE,
-       COALESCE((JSON -> 'color' -> 'alpha')::SMALLINT, 255)::SMALLINT                      AS ALPHA
-FROM PUBLIC.DAMAGE_TYPE_FT;
+       (JSON -> DT.DISPLAYPROPERTIES ->> 'name')::VARCHAR(100)                               AS NAME,
+       (JSON -> DT.DISPLAYPROPERTIES ->> 'description')::VARCHAR(100)                        AS DESCRIPTION,
+       (COALESCE((JSON -> DT.DISPLAYPROPERTIES ->> 'icon')::VARCHAR(100), ''))::VARCHAR(100) AS ICON,
+       COALESCE((JSON -> DT.COLOR -> 'red')::SMALLINT, 255)::SMALLINT                        AS RED,
+       COALESCE((JSON -> DT.COLOR -> 'green')::SMALLINT, 255)::SMALLINT                      AS GREEN,
+       COALESCE((JSON -> DT.COLOR -> 'blue')::SMALLINT, 255)::SMALLINT                       AS BLUE,
+       COALESCE((JSON -> DT.COLOR -> 'alpha')::SMALLINT, 255)::SMALLINT                      AS ALPHA
+FROM PUBLIC.DAMAGE_TYPE_FT CROSS JOIN DT;
 ------------------------------------------------------------------------------------------------------------------------
 
+CREATE FOREIGN TABLE IF NOT EXISTS LORE_DEFINITION_FT (
+    ID BIGINT NOT NULL,
+    JSON JSONB NOT NULL
+    ) SERVER SOURCE_DB OPTIONS (table_name 'destinyloredefinition');
+
+DROP TABLE IF EXISTS LORE_DEFINITION;
+
+CREATE TABLE IF NOT EXISTS LORE_DEFINITION
+(
+    ID              SERIAL,
+    HASH            BIGINT         NOT NULL,
+    DESCRIPTION     VARCHAR(12000) NOT NULL CHECK (LENGTH(DESCRIPTION) > 0),
+    NAME            VARCHAR(100)   NOT NULL CHECK (LENGTH(NAME) > 0),
+    SUBTITLE        VARCHAR(300)   NOT NULL CHECK (LENGTH(SUBTITLE) > 0),
+    DESC_LENGTH     INTEGER        NOT NULL CHECK (DESC_LENGTH >= 0),
+    SUBTITLE_LENGTH INTEGER        NOT NULL CHECK (SUBTITLE_LENGTH >= 0),
+    CONSTRAINT LORE_DEFINITION_PK PRIMARY KEY (ID)
+);
+
+INSERT INTO LORE_DEFINITION (HASH, DESCRIPTION, NAME, SUBTITLE, DESC_LENGTH, SUBTITLE_LENGTH)
+WITH LORE AS (SELECT 'displayProperties'   AS DISPLAYPROPERTIES,
+                     'Nothing to see here' AS NOTHINGTOSEEHERE,
+                     'description'         AS LOREDESCR,
+                     'name'                AS LORENAME,
+                     'subtitle'            AS LORESUBTITLE)
+SELECT (JSON ->> 'hash')::BIGINT                                          AS HASH,
+       CASE (JSON -> LORE.DISPLAYPROPERTIES ->> LORE.LOREDESCR)::VARCHAR(12000)
+           WHEN NULL THEN LORE.NOTHINGTOSEEHERE
+           WHEN '' THEN LORE.NOTHINGTOSEEHERE
+           ELSE (JSON -> LORE.DISPLAYPROPERTIES ->> LORE.LOREDESCR)::VARCHAR(12000)
+           END                                                            AS DESCRIPTION,
+       CASE (JSON -> LORE.DISPLAYPROPERTIES ->> 'name')::VARCHAR(100)
+           WHEN NULL THEN LORE.NOTHINGTOSEEHERE
+           WHEN '' THEN LORE.NOTHINGTOSEEHERE
+           ELSE (JSON -> LORE.DISPLAYPROPERTIES ->> 'name')::VARCHAR(100)
+           END                                                            AS NAME,
+       CASE
+           WHEN (JSON ->> LORE.LORESUBTITLE)::VARCHAR(300) IS NULL THEN LORE.NOTHINGTOSEEHERE
+           WHEN (JSON ->> LORE.LORESUBTITLE)::VARCHAR(300) = '' THEN LORE.NOTHINGTOSEEHERE
+           ELSE (JSON ->> LORE.LORESUBTITLE)::VARCHAR(300)
+           END                                                            AS SUBTITLE,
+       LENGTH(JSON -> LORE.DISPLAYPROPERTIES ->> LORE.LOREDESCR)::INTEGER AS DESC_LENGTH,
+       COALESCE(LENGTH(JSON ->> LORE.LORESUBTITLE)::INTEGER, 0)           AS SUBTITLE_LENGTH
+FROM PUBLIC.LORE_DEFINITION_FT
+         CROSS JOIN LORE;
+
+------------------------------------------------------------------------------------------------------------------------
 
 DROP FOREIGN TABLE IF EXISTS DAMAGE_TYPE_FT;
 DROP USER MAPPING IF EXISTS FOR POSTGRES SERVER SOURCE_DB;
