@@ -20,12 +20,17 @@ CREATE TABLE IF NOT EXISTS DAMAGE_TYPE
 );
 
 INSERT INTO DAMAGE_TYPE (HASH, NAME, DESCRIPTION, ICON, RED, GREEN, BLUE, ALPHA)
+WITH DT AS (
+    SELECT 'displayProperties'   AS DISPLAYPROPERTIES,
+                     'description'         AS DTDESCR,
+                     'color' as COLOR
+)
 SELECT (JSON ->> 'hash')::BIGINT                                                            AS HASH,
-       (JSON -> 'displayProperties' ->> 'name')::VARCHAR(100)                               AS NAME,
-       (JSON -> 'displayProperties' ->> 'description')::VARCHAR(100)                        AS DESCRIPTION,
-       (COALESCE((JSON -> 'displayProperties' ->> 'icon')::VARCHAR(100), ''))::VARCHAR(100) AS ICON,
-       COALESCE((JSON -> 'color' -> 'red')::SMALLINT, 255)::SMALLINT                        AS RED,
-       COALESCE((JSON -> 'color' -> 'green')::SMALLINT, 255)::SMALLINT                      AS GREEN,
-       COALESCE((JSON -> 'color' -> 'blue')::SMALLINT, 255)::SMALLINT                       AS BLUE,
-       COALESCE((JSON -> 'color' -> 'alpha')::SMALLINT, 255)::SMALLINT                      AS ALPHA
-FROM PUBLIC.DAMAGE_TYPE_FT;
+       (JSON -> DT.DISPLAYPROPERTIES ->> 'name')::VARCHAR(100)                               AS NAME,
+       (JSON -> DT.DISPLAYPROPERTIES ->> 'description')::VARCHAR(100)                        AS DESCRIPTION,
+       (COALESCE((JSON -> DT.DISPLAYPROPERTIES ->> 'icon')::VARCHAR(100), ''))::VARCHAR(100) AS ICON,
+       COALESCE((JSON -> DT.COLOR -> 'red')::SMALLINT, 255)::SMALLINT                        AS RED,
+       COALESCE((JSON -> DT.COLOR -> 'green')::SMALLINT, 255)::SMALLINT                      AS GREEN,
+       COALESCE((JSON -> DT.COLOR -> 'blue')::SMALLINT, 255)::SMALLINT                       AS BLUE,
+       COALESCE((JSON -> DT.COLOR -> 'alpha')::SMALLINT, 255)::SMALLINT                      AS ALPHA
+FROM PUBLIC.DAMAGE_TYPE_FT CROSS JOIN DT;
